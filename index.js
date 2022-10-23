@@ -19,6 +19,7 @@ app.use(cors());
 // post routes
 app.use("/posts", postRoutes);
 app.use("/user", userRoutes);
+app.use("/", (req, res) => res.send("SERVER IS RUNNING"))
 
 // create PORT
 const PORT = process.env.PORT;
@@ -28,5 +29,5 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => app.listen(PORT, () => console.log(`Server running on ${PORT}`)))
+  .then(() => app.listen(process.env.PORT || 5000, () => console.log(`Server running on ${PORT}`)))
   .catch((err) => console.log(err.message));
