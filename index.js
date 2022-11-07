@@ -11,7 +11,7 @@ import cookieParser from "cookie-parser";
 const app = express();
 dotenv.config();
 
-let whitelist = ["http://localhost:3000", "http://192.168.1.2:3000"];
+let whitelist = ["http://localhost:3000", "http://192.168.1.2:3000", "https://taupe-mousse-6ba3b1.netlify.app/"];
 let corsOptions = {
   origin: (origin, callback) => {
     if (whitelist.indexOf(origin) !== -1) {
