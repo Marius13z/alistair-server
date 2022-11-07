@@ -5,21 +5,35 @@ import mongoose from "mongoose";
 import bodyParser from "body-parser";
 import postRoutes from "./routes/posts.js";
 import userRoutes from "./routes/user.js";
+import cookieParser from "cookie-parser";
 
 // initialize server
 const app = express();
 dotenv.config();
 
+let whitelist = ["http://localhost:3000", "http://192.168.1.2:3000"];
+let corsOptions = {
+  origin: (origin, callback) => {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
+// parse cookies
+app.use(cookieParser());
+
+app.use(cors(corsOptions));
+
 // Set up bodyparser to store the body of a req in req.body
 app.use(bodyParser.json({ limit: "30mb", extended: true }));
 app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }));
-// Enable Cross Origin requests
-app.use(cors());
 
 // post routes
 app.use("/posts", postRoutes);
 app.use("/user", userRoutes);
-app.use("/", (req, res) => res.send("SERVER IS RUNNING"))
 
 // create PORT
 const PORT = process.env.PORT;
@@ -29,5 +43,5 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => app.listen(process.env.PORT || 5000, () => console.log(`Server running on ${PORT}`)))
+  .then(() => app.listen(PORT, () => console.log(`Server running on ${PORT}`)))
   .catch((err) => console.log(err.message));

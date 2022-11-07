@@ -1,20 +1,28 @@
 import User from "../models/user.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import jwtDecode from "jwt-decode";
 
 export const signup = async (req, res) => {
   // destructure user details from request body
   const { username, email, password } = req.body;
 
+  // default image
   const image = "https://i.ibb.co/mbH7CdH/profilepic2.png";
 
   try {
     // get existing user from db
-    const existingUser = await User.findOne({ email });
+    const existingEmail = await User.findOne({ email });
 
     // if there is an user throw a 404 error so the user doesn't create another one
-    if (existingUser)
-      return res.status(404).json({ message: "User already exists" });
+    if (existingEmail) return res.status(404).json("Email is already used");
+
+    // find user by username in db
+    const existingUsername = await User.findOne({ username });
+
+    // if there's a user with this username throw an error
+    if (existingUsername)
+      return res.status(404).json("Username is already used");
 
     // hash passwords for security reasons
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -27,14 +35,28 @@ export const signup = async (req, res) => {
       image,
     });
 
-    // create a json web token that expires in 24h
-    // const token = jwt.sign({ email: result?.email, id: result?._id }, "test", {
-    //   expiresIn: "24h",
-    // });
+    // convert newly created user id to string
+    const id = result?._id.toString();
 
-    res.status(200).json({ result });
+    // create a token
+    const accessToken = jwt.sign(
+      { id, username: result?.username },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    // store token in a cookie
+    res.cookie("token", accessToken, {
+      httpOnly: false,
+      path: "/",
+      sameSite: "None",
+      secure: true,
+      maxAge: 3600000,
+    });
+
+    res.status(200).json(accessToken);
   } catch (error) {
-    res.status(500).send({ error: error.message });
+    res.status(500);
   }
 };
 
@@ -52,12 +74,124 @@ export const signin = async (req, res) => {
     );
 
     // if password isn't the right one for this acc throw an error
-    if (!isPasswordCorrect)
-      return res.status(404).send({ error: "Invalid Password" });
+    if (!isPasswordCorrect) return res.status(404).json("Invalid Password");
 
-    res.status(200).json({ result: existingUser });
+    // create a jwt token
+    const accessToken = jwt.sign(
+      { id: existingUser._id, username: existingUser.username },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    // store token in cookie
+    res.cookie("token", accessToken, {
+      httpOnly: false,
+      path: "/",
+      sameSite: "None",
+      secure: true,
+      maxAge: 3600000,
+    });
+
+    res.status(200).json(accessToken);
   } catch (error) {
-    res.status(500).json({ message: "Something went wrong" });
+    res.status(500);
+  }
+};
+
+export const signinWithGoogle = async (req, res) => {
+  const { name: username, picture: image, email } = req.body;
+
+  try {
+    // check if there is an user with this username
+    const user = await User.findOne({ username });
+
+    // if there's no user with that username create a user
+    if (!user) await User.create({ username, image, email });
+
+    // create an access token
+    const accessToken = jwt.sign(
+      { username: username, id: user?._id },
+      process.env.JWT_SECRET_KEY,
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    // store token in cookie
+    res.cookie("token", accessToken, {
+      httpOnly: false,
+      path: "/",
+      sameSite: "None",
+      secure: true,
+      maxAge: 3600000,
+    });
+
+    res.status(200).json(accessToken);
+  } catch (error) {
+    res.status(500);
+  }
+};
+
+export const signout = async (req, res) => {
+  const { id } = req.body;
+
+  // get token from cookie
+  const token = req.headers.cookie?.split("=")[1];
+
+  // if there's no token return status 204
+  if (!token) return res.status(204);
+
+  try {
+    // decode token
+    const user = jwtDecode(token);
+
+    // if the user trying to sign out is not the user that has the profile then throw an error
+    if (user?.username !== id)
+      return res.status(401).json("You aren't allowed to perform this action");
+
+    // clear cookie
+    res.cookie("token", token, {
+      httpOnly: false,
+      path: "/",
+      sameSite: "None",
+      secure: true,
+      maxAge: new Date(0),
+    });
+
+    res.status(200).json("logout success");
+  } catch (error) {
+    res.status(500);
+  }
+};
+
+export const getUser = async (req, res) => {
+  // get token from cookie
+  const token = req.headers?.cookie?.split("=")[1];
+
+  if (!token) return res.status(204).json("Not found");
+
+  try {
+    // find logged in user based on token
+    const { username } = jwtDecode(token);
+
+    const user = await User.findOne({ username });
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json(error);
+  }
+};
+
+export const getUserProfile = async (req, res) => {
+  const { id: username } = req.params;
+
+  try {
+    // find user in db
+    const user = await User.findOne({ username });
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500);
   }
 };
 
@@ -65,6 +199,7 @@ export const getSuggestions = async (req, res) => {
   const { id } = req.params;
 
   try {
+    // get a list of all available users
     const users = await User.find();
 
     // 1. map through array
@@ -82,70 +217,70 @@ export const getSuggestions = async (req, res) => {
 
     res.status(200).json(unfollowedUsers);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500);
   }
 };
 
 export const followUser = async (req, res) => {
-  const { followingUser, followedUserId } = req.body;
+  const { followee } = req.body;
+
+  // get token from cookie
+  const token = req.headers.cookie?.split("=")[1];
 
   try {
-    // find user in db
-    const user = await User.findById(followedUserId);
+    // decode token
+    const follower = jwtDecode(token);
 
+    if (!token)
+      return res.status(404).json("You aren't authorized to do this action");
+
+    if (follower.id === followee)
+      return res.status(401).json("You aren't allowed to perform this action");
+
+    // find user in db
+    const user = await User.findById(followee);
     // if there is no user found respond with an error
     if (!user) return res.status(404).json({ error: "User not found" });
-
     // check if user has followed
     const userIsFollowed = user.followers.findIndex(
-      (id) => id === followingUser
+      (id) => id === follower.username
     );
-
     // if user hasn't followed it will be equal to -1 and push the follower in user followers array
     if (userIsFollowed === -1) {
-      user.followers.push(followingUser);
+      user.followers.push(follower.username);
     } else {
       // if user has followed return those user that haven't followed
-      user.followers = user.followers.filter((id) => id !== followingUser);
+      user.followers = user.followers.filter((id) => id !== follower.username);
     }
-
     // find the user and update it with the new followers
-    const updatedFollowers = await User.findByIdAndUpdate(
-      followedUserId,
-      user,
-      {
-        new: true,
-      }
-    );
-
+    const updatedFollowers = await User.findByIdAndUpdate(followee, user, {
+      new: true,
+    });
     // send back the updated followers to properly update the state in UI
     res.status(200).json(updatedFollowers);
   } catch (error) {
-    res.status(500).json({ message: error });
-  }
-};
-
-export const getUser = async (req, res) => {
-  const { id } = req.params;
-
-  const username = new RegExp(id, "i");
-
-  try {
-    const user = await User.find({ username });
-
-    res.status(200).json(user);
-  } catch (error) {
-    res.status(500).json({ message: error });
+    res.status(500);
   }
 };
 
 export const editUserDescription = async (req, res) => {
   const { description } = req.body;
-  const { id } = req.params;
+  const { id: username } = req.params;
 
-  const username = new RegExp(id, "i");
+  // get token from cookie
+  const token = req.headers.cookie?.split("=")[1];
+
+  if (!token)
+    return res.status(404).json("You aren't authorized to do this action");
 
   try {
+    // decode token
+    const match = jwtDecode(token);
+
+    // check if profile username matches user trying to modify it
+    if (match.username !== username)
+      return res.status(401).json("You aren't allowed to perform this action");
+
     // find user and update its description with the new description
     const updatedUser = await User.findOneAndUpdate(
       { username },
@@ -155,17 +290,28 @@ export const editUserDescription = async (req, res) => {
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    res.status(500).json({ message: error });
+    res.status(500);
   }
 };
 
 // edit user Image
 export const editUserImage = async (req, res) => {
-  const { image, id } = req.body;
+  const { image, id: username } = req.body;
 
-  const username = new RegExp(id, "i");
+  // get token from cookie
+  const token = req.headers.cookie?.split("=")[1];
+
+  if (!token)
+    return res.status(404).json("You aren't authorized to do this action");
 
   try {
+    // decode token
+    const match = jwtDecode(token);
+
+    // check if profile username matches user trying to modify it
+    if (match.username !== username)
+      return res.status(401).json("You aren't allowed to perform this action");
+
     const user = await User.findOneAndUpdate(
       { username },
       { image: image },
@@ -174,6 +320,6 @@ export const editUserImage = async (req, res) => {
 
     res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ message: error });
+    res.status(500);
   }
 };
