@@ -34,6 +34,7 @@ app.use(bodyParser.urlencoded({ limit: "30mb", extended: true }));
 // post routes
 app.use("/posts", postRoutes);
 app.use("/user", userRoutes);
+app.use("/", async (req, res) => (res.json("It's working!")))
 
 // create PORT
 const PORT = process.env.PORT;
