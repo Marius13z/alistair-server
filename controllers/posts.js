@@ -25,6 +25,7 @@ export const getPopularPosts = async (req, res) => {
 
     res.status(200).json(sortedPosts);
   } catch (error) {
+    console.log(error)
     res.status(404);
   }
 };
