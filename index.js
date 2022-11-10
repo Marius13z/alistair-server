@@ -11,21 +11,21 @@ import cookieParser from "cookie-parser";
 const app = express();
 dotenv.config();
 
-// let whitelist = ["http://localhost:3000", "http://192.168.1.2:3000", "https://taupe-mousse-6ba3b1.netlify.app"];
-// let corsOptions = {
-//   origin: (origin, callback) => {
-//     if (whitelist.indexOf(origin) !== -1) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   },
-//   credentials: true,
-// };
+let whitelist = ["https://taupe-mousse-6ba3b1.netlify.app"];
+let corsOptions = {
+  origin: (origin, callback) => {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
 // parse cookies
 app.use(cookieParser());
 
-app.use(cors());
+app.use(cors(corsOptions));
 
 // Set up bodyparser to store the body of a req in req.body
 app.use(bodyParser.json({ limit: "30mb", extended: true }));
