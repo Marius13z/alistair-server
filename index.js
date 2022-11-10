@@ -26,7 +26,7 @@ dotenv.config();
 app.use(cookieParser());
 
 app.use(cors({
-  origin: "*",
+  origin: ["https://taupe-mousse-6ba3b1.netlify.app", "https://i.ibb.co/"],
   credentials: true
 }));
 
