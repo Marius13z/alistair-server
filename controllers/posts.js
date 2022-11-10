@@ -5,8 +5,9 @@ import jwtDecode from "jwt-decode";
 export const getPosts = async (req, res) => {
   try {
     // find all posts and sort them by date
-    const posts = await Post.find().sort({ date: -1 });
+    const posts = await Post.find().sort({ date: -1 }).explain('executionStats');
 
+    console.log(posts)
     res.status(200).json(posts);
   } catch (error) {
     res.status(404);
